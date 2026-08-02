@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://atmos.tools/schemas/atmos/atmos-manifest/1.0/atmos-manifest.json
+
+import:
+  - ".atmos/commands/**/*"
+
+base_path: ""
+
+workflows:
+  base_path: ".atmos/workflows"
+
+toolchain:
+  install_path: ".tools"
+  file_path: ".tool-versions"
+  verification:
+    checksums: required
+    signatures: when_available
+    verifier_install: auto
+    verifier_trust: auto
+
+ci:
+  cache:
+    enabled: true
+    auto: both
+    paths:
+      - toolchain
+    key: 'atmos-cache-{{ .OS }}-{{ .Arch }}-{{ hashFiles ".atmos/commands/*.yaml" ".atmos/workflows/*.yaml" }}'
+
+templates:
+  settings:
+    enabled: true
+    sprig:
+      enabled: true
+    gomplate:
+      enabled: true
+      timeout: 5
+
+logs:
+  file: "/dev/stderr"
+  level: Info
+
+settings:
+  experimental: silence

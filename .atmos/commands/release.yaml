@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=https://atmos.tools/schemas/atmos/atmos-manifest/1.0/atmos-manifest.json
+
+commands:
+  - name: release
+    description: Verify and prepare signed release artifacts
+    commands:
+      - name: artifacts
+        description: Build the JAR, checksum, and CycloneDX SBOM
+        flags:
+          - name: version
+            description: Artifact version without a leading v
+            type: string
+            required: false
+        env:
+          - key: RELEASE_VERSION
+            value: '{{ index .Flags "version" }}'
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              version="${RELEASE_VERSION:-0.1.0-SNAPSHOT}"
+              sh dev/compose.sh run --rm toolchain gradle --no-daemon \
+                -PreleaseVersion="$version" clean releaseArtifacts
+
+      - name: reproducible
+        description: Build the plugin twice and compare the JAR bytes
+        flags:
+          - name: version
+            description: Artifact version without a leading v
+            type: string
+            required: false
+        env:
+          - key: RELEASE_VERSION
+            value: '{{ index .Flags "version" }}'
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              version="${RELEASE_VERSION:-0.1.0-SNAPSHOT}"
+              comparison=".reproducibility-first-$$.jar"
+              cleanup() {
+                sh dev/compose.sh run --rm toolchain rm -f "$comparison"
+              }
+              trap cleanup EXIT
+              sh dev/compose.sh run --rm toolchain gradle --no-daemon \
+                --no-build-cache -PreleaseVersion="$version" clean pluginJar verifyPluginJar
+              sh dev/compose.sh run --rm toolchain cp \
+                build/plugin/prometheus.metabase-driver.jar "$comparison"
+              sh dev/compose.sh run --rm toolchain gradle --no-daemon \
+                --no-build-cache -PreleaseVersion="$version" clean pluginJar verifyPluginJar
+              sh dev/compose.sh run --rm toolchain cmp \
+                "$comparison" build/plugin/prometheus.metabase-driver.jar
+
+      - name: verify
+        description: Run all quality, reproducibility, backend, and Metabase gates
+        flags:
+          - name: version
+            description: Release version whose exact JAR must pass every compatibility test
+            type: string
+            required: false
+        env:
+          - key: RELEASE_VERSION
+            value: '{{ index .Flags "version" }}'
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              atmos workflow verify -f verify
+              if [ -n "${RELEASE_VERSION:-}" ]; then
+                atmos release reproducible --version "$RELEASE_VERSION"
+                atmos release artifacts --version "$RELEASE_VERSION"
+                SKIP_PACKAGE=true atmos workflow compatibility -f compatibility
+              else
+                atmos release reproducible
+                atmos workflow compatibility -f compatibility
+              fi
+
+      - name: sign
+        description: Keylessly sign release artifacts with Sigstore
+        dependencies:
+          tools:
+            sigstore/cosign: "3.1.2"
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              for artifact in build/release/*.jar build/release/*.cdx.json; do
+                cosign sign-blob --yes \
+                  --bundle "${artifact}.sigstore.json" \
+                  "$artifact"
+              done

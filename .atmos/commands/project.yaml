@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=https://atmos.tools/schemas/atmos/atmos-manifest/1.0/atmos-manifest.json
+
+commands:
+  - name: project
+    description: Project setup and diagnostics
+    commands:
+      - name: doctor
+        description: Verify the local Atmos and Docker toolchain
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              command -v atmos >/dev/null 2>&1 || { echo "Error: atmos is required" >&2; exit 1; }
+              command -v git >/dev/null 2>&1 || { echo "Error: git is required" >&2; exit 1; }
+              cd "$(git rev-parse --show-toplevel)"
+              command -v docker >/dev/null 2>&1 || { echo "Error: docker is required" >&2; exit 1; }
+              docker version >/dev/null
+              docker compose version >/dev/null
+              sh dev/compose.sh config --quiet
+              sh dev/compose.sh run --rm toolchain sh -c 'probe=.compose-write-probe-$$; : > "$probe"; rm "$probe"'
+              echo "Atmos: $(atmos version | tr -d '\n')"
+              docker --version
+              docker compose version
+
+      - name: clean
+        description: Remove generated build output through the pinned toolchain
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              sh dev/compose.sh run --rm toolchain gradle --no-daemon clean
+
+      - name: lock
+        description: Refresh locked and checksummed Gradle dependencies
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              sh dev/compose.sh run --rm toolchain gradle --no-daemon \
+                --write-locks --write-verification-metadata sha256 dependencies
+
+  - name: lint
+    description: Validate project configuration and compile all source sets
+    dependencies:
+      tools:
+        rhysd/actionlint: "1.7.12"
+    steps:
+      - type: shell
+        command: |
+          set -eu
+          cd "$(git rev-parse --show-toplevel)"
+          sh dev/compose.sh config --quiet
+          actionlint
+          sh dev/compose.sh run --rm toolchain gradle --no-daemon lint
+
+  - name: build
+    description: Compile and assemble the driver with the pinned Kotlin toolchain
+    steps:
+      - type: shell
+        command: |
+          set -eu
+          cd "$(git rev-parse --show-toplevel)"
+          sh dev/compose.sh run --rm toolchain gradle --no-daemon assemble
+
+  - name: package
+    description: Build and inspect the Metabase community-driver JAR
+    steps:
+      - type: shell
+        command: |
+          set -eu
+          cd "$(git rev-parse --show-toplevel)"
+          if [ "${SKIP_PACKAGE:-}" = "true" ]; then
+            test -f build/plugin/prometheus.metabase-driver.jar
+          else
+            sh dev/compose.sh run --rm toolchain gradle --no-daemon clean pluginJar verifyPluginJar
+          fi

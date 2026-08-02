@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://atmos.tools/schemas/atmos/atmos-manifest/1.0/atmos-manifest.json
+
+workflows:
+  compatibility:
+    description: Verify the driver against every declared Metabase and backend target
+    steps:
+      - command: package
+      - command: test mimir
+      - command: test prometheus
+      - command: test metabase --reuse-package
+      - command: test metabase-legacy --reuse-package
+      - command: test metabase-prometheus --reuse-package
+      - command: test metabase-legacy-prometheus --reuse-package
+      - command: test metabase-synthetic --reuse-package

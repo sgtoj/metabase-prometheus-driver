@@ -1,0 +1,238 @@
+# yaml-language-server: $schema=https://atmos.tools/schemas/atmos/atmos-manifest/1.0/atmos-manifest.json
+
+commands:
+  - name: test
+    description: Local test suites
+    commands:
+      - name: unit
+        description: Run fast Kotlin unit and contract tests
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              sh dev/compose.sh run --rm toolchain gradle --no-daemon test
+
+      - name: mimir
+        description: Run the live contract suite against disposable local Mimir
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              export COMPOSE_PROJECT_NAME="metabase-prometheus-driver-test-mimir-$$"
+              export MIMIR_PORT=0
+              cleanup() {
+                sh dev/compose.sh --profile demo --profile integration down --volumes --remove-orphans
+              }
+              trap cleanup EXIT
+              sh dev/compose.sh --profile integration up --detach mimir
+              sh dev/compose.sh --profile demo up --detach mimir-seed
+              release_version_argument=""
+              if [ -n "${RELEASE_VERSION:-}" ]; then release_version_argument="-PreleaseVersion=$RELEASE_VERSION"; fi
+              sh dev/compose.sh run --rm \
+                -e MIMIR_URL=http://mimir:9009/prometheus \
+                toolchain gradle --no-daemon $release_version_argument mimirIntegrationTest
+
+      - name: prometheus
+        description: Run the live contract suite against disposable local Prometheus
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              export COMPOSE_PROJECT_NAME="metabase-prometheus-driver-test-prometheus-$$"
+              cleanup() {
+                sh dev/compose.sh --profile prometheus-test down --volumes --remove-orphans
+              }
+              trap cleanup EXIT
+              sh dev/compose.sh --profile prometheus-test up --detach prometheus-test
+              release_version_argument=""
+              if [ -n "${RELEASE_VERSION:-}" ]; then release_version_argument="-PreleaseVersion=$RELEASE_VERSION"; fi
+              sh dev/compose.sh run --rm \
+                -e PROMETHEUS_URL=http://prometheus-test:9090 \
+                toolchain gradle --no-daemon $release_version_argument prometheusIntegrationTest
+
+      - name: metabase
+        description: Load the packaged JAR and execute it through local Metabase and Mimir
+        flags:
+          - name: reuse-package
+            description: Reuse the already verified packaged JAR
+            type: bool
+            required: false
+        env:
+          - key: REUSE_PACKAGE
+            value: '{{ index .Flags "reuse-package" }}'
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              export COMPOSE_PROJECT_NAME="metabase-prometheus-driver-test-current-mimir-$$"
+              export METABASE_PORT=0 MIMIR_PORT=0
+              cleanup() {
+                sh dev/compose.sh --profile demo --profile compatibility down --volumes --remove-orphans
+              }
+              trap cleanup EXIT
+              if [ "${SKIP_PACKAGE:-}" != "true" ] && [ "${REUSE_PACKAGE:-}" != "true" ]; then atmos package; fi
+              release_version_argument=""
+              if [ -n "${RELEASE_VERSION:-}" ]; then
+                release_version_argument="-PreleaseVersion=$RELEASE_VERSION"
+                sh dev/compose.sh run --rm toolchain cmp \
+                  "build/release/metabase-prometheus-driver-$RELEASE_VERSION.jar" \
+                  build/plugin/prometheus.metabase-driver.jar
+              fi
+              sh dev/compose.sh --profile demo up --detach --force-recreate mimir mimir-seed metabase
+              sh dev/compose.sh run --rm --use-aliases \
+                -e METABASE_URL=http://metabase:3000 \
+                -e MIMIR_URL=http://mimir:9009/prometheus \
+                -e AUTH_FIXTURE_URL=http://toolchain:18080 \
+                toolchain gradle --no-daemon $release_version_argument metabaseSmoke
+
+      - name: metabase-synthetic
+        description: Execute the packaged JAR through current Metabase against an in-process synthetic backend
+        flags:
+          - name: reuse-package
+            description: Reuse the already verified packaged JAR
+            type: bool
+            required: false
+        env:
+          - key: REUSE_PACKAGE
+            value: '{{ index .Flags "reuse-package" }}'
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              export METABASE_IMAGE='metabase/metabase:v0.63.2@sha256:252f8c9bd56dd21158005675b55876cf9fb838e0a0e0541581af859eafe1f32e'
+              export COMPOSE_PROJECT_NAME="metabase-prometheus-driver-test-synthetic-$$"
+              export METABASE_PORT=0
+              cleanup() {
+                sh dev/compose.sh --profile compatibility down --volumes --remove-orphans
+              }
+              trap cleanup EXIT
+              if [ "${SKIP_PACKAGE:-}" != "true" ] && [ "${REUSE_PACKAGE:-}" != "true" ]; then atmos package; fi
+              release_version_argument=""
+              if [ -n "${RELEASE_VERSION:-}" ]; then
+                release_version_argument="-PreleaseVersion=$RELEASE_VERSION"
+                sh dev/compose.sh run --rm toolchain cmp \
+                  "build/release/metabase-prometheus-driver-$RELEASE_VERSION.jar" \
+                  build/plugin/prometheus.metabase-driver.jar
+              fi
+              sh dev/compose.sh --profile compatibility up --detach --force-recreate metabase
+              sh dev/compose.sh run --rm --use-aliases \
+                -e METABASE_URL=http://metabase:3000 \
+                -e SYNTHETIC_BACKEND_URL=http://toolchain:18081/prometheus \
+                toolchain gradle --no-daemon $release_version_argument metabaseSyntheticContract
+
+      - name: metabase-legacy
+        description: Execute the exact packaged JAR through Metabase v0.60.3.8 and Mimir
+        flags:
+          - name: reuse-package
+            description: Reuse the already verified packaged JAR
+            type: bool
+            required: false
+        env:
+          - key: REUSE_PACKAGE
+            value: '{{ index .Flags "reuse-package" }}'
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              export METABASE_IMAGE='metabase/metabase:v0.60.3.8@sha256:af975562bfff2452f17055f2455d7338cd4d7b6741963bbc1ac9222012b6d102'
+              export COMPOSE_PROJECT_NAME="metabase-prometheus-driver-test-legacy-mimir-$$"
+              export METABASE_PORT=0 MIMIR_PORT=0
+              cleanup() {
+                sh dev/compose.sh --profile demo --profile compatibility down --volumes --remove-orphans
+              }
+              trap cleanup EXIT
+              if [ "${SKIP_PACKAGE:-}" != "true" ] && [ "${REUSE_PACKAGE:-}" != "true" ]; then atmos package; fi
+              release_version_argument=""
+              if [ -n "${RELEASE_VERSION:-}" ]; then
+                release_version_argument="-PreleaseVersion=$RELEASE_VERSION"
+                sh dev/compose.sh run --rm toolchain cmp \
+                  "build/release/metabase-prometheus-driver-$RELEASE_VERSION.jar" \
+                  build/plugin/prometheus.metabase-driver.jar
+              fi
+              sh dev/compose.sh --profile demo up --detach --force-recreate mimir mimir-seed metabase
+              sh dev/compose.sh run --rm --use-aliases \
+                -e METABASE_URL=http://metabase:3000 \
+                -e MIMIR_URL=http://mimir:9009/prometheus \
+                -e AUTH_FIXTURE_URL=http://toolchain:18080 \
+                toolchain gradle --no-daemon $release_version_argument metabaseSmoke
+
+      - name: metabase-prometheus
+        description: Execute the packaged JAR through current Metabase and Prometheus
+        flags:
+          - name: reuse-package
+            description: Reuse the already verified packaged JAR
+            type: bool
+            required: false
+        env:
+          - key: REUSE_PACKAGE
+            value: '{{ index .Flags "reuse-package" }}'
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              export COMPOSE_PROJECT_NAME="metabase-prometheus-driver-test-current-prometheus-$$"
+              export METABASE_PORT=0
+              cleanup() {
+                sh dev/compose.sh --profile compatibility --profile prometheus-test down --volumes --remove-orphans
+              }
+              trap cleanup EXIT
+              if [ "${SKIP_PACKAGE:-}" != "true" ] && [ "${REUSE_PACKAGE:-}" != "true" ]; then atmos package; fi
+              release_version_argument=""
+              if [ -n "${RELEASE_VERSION:-}" ]; then
+                release_version_argument="-PreleaseVersion=$RELEASE_VERSION"
+                sh dev/compose.sh run --rm toolchain cmp \
+                  "build/release/metabase-prometheus-driver-$RELEASE_VERSION.jar" \
+                  build/plugin/prometheus.metabase-driver.jar
+              fi
+              sh dev/compose.sh --profile compatibility --profile prometheus-test up --detach --force-recreate prometheus-test metabase
+              sh dev/compose.sh run --rm --use-aliases \
+                -e METABASE_URL=http://metabase:3000 \
+                -e BACKEND_URL=http://prometheus-test:9090 \
+                -e BACKEND_KIND=prometheus \
+                -e AUTH_FIXTURE_URL=http://toolchain:18080 \
+                toolchain gradle --no-daemon $release_version_argument metabaseSmoke
+
+      - name: metabase-legacy-prometheus
+        description: Execute the packaged JAR through Metabase v0.60.3.8 and Prometheus
+        flags:
+          - name: reuse-package
+            description: Reuse the already verified packaged JAR
+            type: bool
+            required: false
+        env:
+          - key: REUSE_PACKAGE
+            value: '{{ index .Flags "reuse-package" }}'
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              export METABASE_IMAGE='metabase/metabase:v0.60.3.8@sha256:af975562bfff2452f17055f2455d7338cd4d7b6741963bbc1ac9222012b6d102'
+              export COMPOSE_PROJECT_NAME="metabase-prometheus-driver-test-legacy-prometheus-$$"
+              export METABASE_PORT=0
+              cleanup() {
+                sh dev/compose.sh --profile compatibility --profile prometheus-test down --volumes --remove-orphans
+              }
+              trap cleanup EXIT
+              if [ "${SKIP_PACKAGE:-}" != "true" ] && [ "${REUSE_PACKAGE:-}" != "true" ]; then atmos package; fi
+              release_version_argument=""
+              if [ -n "${RELEASE_VERSION:-}" ]; then
+                release_version_argument="-PreleaseVersion=$RELEASE_VERSION"
+                sh dev/compose.sh run --rm toolchain cmp \
+                  "build/release/metabase-prometheus-driver-$RELEASE_VERSION.jar" \
+                  build/plugin/prometheus.metabase-driver.jar
+              fi
+              sh dev/compose.sh --profile compatibility --profile prometheus-test up --detach --force-recreate prometheus-test metabase
+              sh dev/compose.sh run --rm --use-aliases \
+                -e METABASE_URL=http://metabase:3000 \
+                -e BACKEND_URL=http://prometheus-test:9090 \
+                -e BACKEND_KIND=prometheus \
+                -e AUTH_FIXTURE_URL=http://toolchain:18080 \
+                toolchain gradle --no-daemon $release_version_argument metabaseSmoke

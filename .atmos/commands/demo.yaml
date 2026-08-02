@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=https://atmos.tools/schemas/atmos/atmos-manifest/1.0/atmos-manifest.json
+
+commands:
+  - name: demo
+    description: Local Mimir and Metabase community-edition demonstration
+    commands:
+      - name: up
+        description: Build the driver and start Mimir, its seed process, and Metabase
+        flags:
+          - name: no-build
+            description: Reuse the existing packaged driver JAR
+            type: bool
+            required: false
+        env:
+          - key: DEMO_NO_BUILD
+            value: '{{ index .Flags "no-build" }}'
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              if [ "${DEMO_NO_BUILD:-}" != "true" ]; then
+                atmos package
+              fi
+              sh dev/compose.sh --profile demo up --detach --force-recreate mimir mimir-seed metabase
+              sh dev/compose.sh run --rm \
+                -e METABASE_URL=http://metabase:3000 \
+                -e MIMIR_URL=http://mimir:9009/prometheus \
+                -e CREATE_DEMO=true \
+                toolchain gradle --no-daemon metabaseSmoke
+              echo "Metabase: http://localhost:3000"
+              echo "Mimir:   http://localhost:9009"
+              echo "Login:   admin@example.test / MetabaseLocal123!"
+
+      - name: down
+        description: Stop the local demo
+        flags:
+          - name: volumes
+            description: Also delete all local demo data
+            type: bool
+            required: false
+        env:
+          - key: DEMO_VOLUMES
+            value: '{{ index .Flags "volumes" }}'
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              if [ "${DEMO_VOLUMES:-}" = "true" ]; then
+                sh dev/compose.sh --profile demo down --volumes --remove-orphans
+              else
+                sh dev/compose.sh --profile demo down --remove-orphans
+              fi
+
+      - name: logs
+        description: Follow all demo logs or one selected service
+        arguments:
+          - name: service
+            description: Optional service name
+            required: false
+        env:
+          - key: DEMO_SERVICE
+            value: "{{ .Arguments.service }}"
+        steps:
+          - type: shell
+            interactive: true
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              if [ -n "${DEMO_SERVICE:-}" ]; then
+                exec sh dev/compose.sh --profile demo logs --follow "$DEMO_SERVICE"
+              fi
+              exec sh dev/compose.sh --profile demo logs --follow
+
+      - name: reset
+        description: Stop the demo and delete its local data volumes
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              sh dev/compose.sh --profile demo down --volumes --remove-orphans

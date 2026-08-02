@@ -1,0 +1,16 @@
+.gradle/
+.idea/
+.kotlin/
+.tools/
+.tool-versions.lock
+.atmos/cache/
+.atmos/cache.yaml
+/build/
+/buildSrc/build/
+.reproducibility-first.jar
+target/
+out/
+*.iml
+*.log
+.DS_Store
+.env

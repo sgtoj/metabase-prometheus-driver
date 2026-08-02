@@ -1,0 +1,90 @@
+name: metabase-prometheus-driver
+
+services:
+  toolchain:
+    image: gradle:9.5.0-jdk25@sha256:03305b464e024b29cfaad1c4a41fed61d06d15453176d2180f65bd4358b789a6
+    entrypoint: []
+    working_dir: /workspace
+    init: true
+    user: "${LOCAL_UID:?Run Compose through dev/compose.sh}:${LOCAL_GID:?Run Compose through dev/compose.sh}"
+    environment:
+      HOME: /tmp
+      GRADLE_USER_HOME: /workspace/.gradle
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      TZ: UTC
+    volumes:
+      - type: bind
+        source: .
+        target: /workspace
+
+  mimir:
+    image: grafana/mimir:3.1.4@sha256:ea395743a08cc1f41ede12a7264613cb32f0268bbda6277f12a5929b71625a41
+    profiles: [demo, integration, compatibility]
+    init: true
+    command:
+      - -config.file=/etc/mimir/mimir.yaml
+    ports:
+      - "127.0.0.1:${MIMIR_PORT:-9009}:9009"
+    volumes:
+      - type: bind
+        source: ./dev/mimir.yaml
+        target: /etc/mimir/mimir.yaml
+        read_only: true
+      - type: volume
+        source: mimir-data
+        target: /data
+
+  mimir-seed:
+    image: grafana/mimir:3.1.4@sha256:ea395743a08cc1f41ede12a7264613cb32f0268bbda6277f12a5929b71625a41
+    profiles: [demo]
+    init: true
+    depends_on:
+      - mimir
+    command:
+      - -target=continuous-test
+      - -tests.write-endpoint=http://mimir:9009
+      - -tests.read-endpoint=http://mimir:9009/prometheus
+      - -tests.tenant-id=demo
+      - -tests.run-interval=5s
+      - -tests.write-read-series-test.num-series=3
+      - -tests.write-read-series-test.histogram-samples-enabled=false
+      - -server.http-listen-port=8080
+      - -usage-stats.enabled=false
+
+  prometheus-test:
+    image: prom/prometheus:v3.13.2@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69
+    profiles: [prometheus-test]
+    init: true
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=1h
+    volumes:
+      - type: bind
+        source: ./dev/prometheus.yaml
+        target: /etc/prometheus/prometheus.yaml
+        read_only: true
+
+  metabase:
+    image: ${METABASE_IMAGE:-metabase/metabase:v0.63.2@sha256:252f8c9bd56dd21158005675b55876cf9fb838e0a0e0541581af859eafe1f32e}
+    profiles: [demo, compatibility]
+    init: true
+    environment:
+      MB_PLUGINS_DIR: /plugins
+      MB_JETTY_PORT: "3000"
+      MB_DB_FILE: /metabase-data/metabase.db
+    ports:
+      - "127.0.0.1:${METABASE_PORT:-3000}:3000"
+    volumes:
+      - type: bind
+        source: ./build/plugin/prometheus.metabase-driver.jar
+        target: /plugins/prometheus.metabase-driver.jar
+        read_only: true
+      - type: volume
+        source: metabase-data
+        target: /metabase-data
+
+volumes:
+  metabase-data:
+  mimir-data:

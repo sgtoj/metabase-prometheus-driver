@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://atmos.tools/schemas/atmos/atmos-manifest/1.0/atmos-manifest.json
+
+commands:
+  - name: security
+    description: Local and CI security checks
+    commands:
+      - name: scan
+        description: Scan source, configuration, and dependencies for secrets and vulnerabilities
+        dependencies:
+          tools:
+            gitleaks/gitleaks: "8.30.1"
+            aquasecurity/trivy: "0.72.0"
+        steps:
+          - type: shell
+            command: |
+              set -eu
+              cd "$(git rev-parse --show-toplevel)"
+              gitleaks dir --no-banner --redact .
+              trivy fs \
+                --exit-code 1 \
+                --scanners vuln,misconfig,secret \
+                --severity HIGH,CRITICAL \
+                --skip-dirs .git \
+                --skip-dirs build \
+                .

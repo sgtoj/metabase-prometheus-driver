@@ -1,0 +1,97 @@
+info:
+  name: Metabase Prometheus Driver
+  version: ${version}
+  description: Native PromQL access to Grafana Mimir and Prometheus.
+
+driver:
+  name: prometheus
+  display-name: Mimir / Prometheus
+  lazy-load: true
+  connection-properties:
+    - name: url
+      display-name: Base URL
+      placeholder: http://mimir:9009/prometheus
+      type: string
+      required: true
+    - name: tenant-id
+      display-name: Mimir Tenant ID
+      type: string
+      required: false
+    - name: auth-mode
+      display-name: Authentication mode
+      type: select
+      default: none
+      options:
+        - name: None
+          value: none
+        - name: Basic
+          value: basic
+        - name: Bearer token
+          value: bearer
+    - name: username
+      display-name: Username
+      type: string
+      required: false
+      visible-if:
+        auth-mode: basic
+    - name: password
+      display-name: Password
+      type: secret
+      secret-kind: password
+      required: false
+      visible-if:
+        auth-mode: basic
+    - name: bearer-token
+      display-name: Bearer token
+      type: secret
+      secret-kind: password
+      required: false
+      visible-if:
+        auth-mode: bearer
+    - advanced-options-start
+    - name: connect-timeout
+      display-name: Connect timeout
+      type: string
+      default: 10s
+      visible-if:
+        advanced-options: true
+    - name: query-timeout
+      display-name: Query timeout
+      type: string
+      default: 120s
+      visible-if:
+        advanced-options: true
+    - name: maximum-query-range
+      display-name: Maximum query range
+      type: string
+      default: 31d
+      visible-if:
+        advanced-options: true
+    - name: maximum-data-points
+      display-name: Maximum data points per series
+      type: integer
+      default: 1100
+      visible-if:
+        advanced-options: true
+    - name: minimum-range-step
+      display-name: Minimum range step
+      type: string
+      default: 15s
+      visible-if:
+        advanced-options: true
+    - name: maximum-returned-rows
+      display-name: Maximum returned rows
+      type: integer
+      default: 100000
+      visible-if:
+        advanced-options: true
+    - name: maximum-response-size
+      display-name: Maximum response size in bytes
+      type: integer
+      default: 33554432
+      visible-if:
+        advanced-options: true
+
+init:
+  - step: load-namespace
+    namespace: metabase.driver.prometheus
