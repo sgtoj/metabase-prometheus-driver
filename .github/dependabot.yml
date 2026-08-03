@@ -5,7 +5,8 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
-  - package-ecosystem: docker
+  # This repository has no Dockerfile; images are pinned by digest in compose.yaml.
+  - package-ecosystem: docker-compose
     directory: /
     schedule:
       interval: monthly
