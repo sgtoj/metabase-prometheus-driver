@@ -2,7 +2,7 @@ name: metabase-prometheus-driver
 
 services:
   toolchain:
-    image: gradle:9.5.0-jdk25@sha256:03305b464e024b29cfaad1c4a41fed61d06d15453176d2180f65bd4358b789a6
+    image: gradle:9.6.1-jdk25@sha256:934a520ae0cc1f46764c2e6e1f6510d2fcdf6a7e12328b6aee34192d14f171a2
     entrypoint: []
     working_dir: /workspace
     init: true
