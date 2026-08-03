@@ -55,8 +55,8 @@ tasks.processResources {
 }
 
 dependencies {
-    compileOnly("org.jetbrains.kotlin:kotlin-stdlib:2.2.0")
-    testImplementation("org.jetbrains.kotlin:kotlin-stdlib:2.2.0")
+    compileOnly("org.jetbrains.kotlin:kotlin-stdlib:2.4.10")
+    testImplementation("org.jetbrains.kotlin:kotlin-stdlib:2.4.10")
     testImplementation(platform("org.junit:junit-bom:5.14.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
