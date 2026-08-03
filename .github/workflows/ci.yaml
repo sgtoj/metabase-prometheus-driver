@@ -13,13 +13,18 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# The Atmos toolchain verifies downloaded tools with `gh attestation verify`,
+# which requires a token when it runs inside GitHub Actions.
+env:
+  GH_TOKEN: ${{ github.token }}
+
 jobs:
   verify:
-    name: Static and unit verification
+    name: Static and Unit Verification
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Check out repository
+      - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Atmos
         uses: cloudposse/github-action-setup-atmos@89c34b209108da66a27c8d6565d8d4b21dbdaa73 # v3.2.0
@@ -27,7 +32,7 @@ jobs:
           atmos-version: 1.224.1
           install-wrapper: false
           checksum-validation: enforce
-      - name: Run local verification workflow
+      - name: Run Local Verification Workflow
         run: atmos workflow verify -f verify
 
   compatibility:
@@ -38,22 +43,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Mimir API contract
+          - name: Mimir API Contract
             command: test mimir
-          - name: Prometheus API contract
+          - name: Prometheus API Contract
             command: test prometheus
-          - name: Metabase current with Mimir
+          - name: Metabase Current with Mimir
             command: test metabase
-          - name: Metabase legacy with Mimir
+          - name: Metabase Legacy with Mimir
             command: test metabase-legacy
-          - name: Metabase current with Prometheus
+          - name: Metabase Current with Prometheus
             command: test metabase-prometheus
-          - name: Metabase legacy with Prometheus
+          - name: Metabase Legacy with Prometheus
             command: test metabase-legacy-prometheus
-          - name: Metabase synthetic contract
+          - name: Metabase Synthetic Contract
             command: test metabase-synthetic
     steps:
-      - name: Check out repository
+      - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Atmos
         uses: cloudposse/github-action-setup-atmos@89c34b209108da66a27c8d6565d8d4b21dbdaa73 # v3.2.0
@@ -61,5 +66,5 @@ jobs:
           atmos-version: 1.224.1
           install-wrapper: false
           checksum-validation: enforce
-      - name: Run compatibility target
+      - name: Run Compatibility Target
         run: atmos ${{ matrix.command }}
