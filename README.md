@@ -10,10 +10,16 @@ translate visual-query MBQL into PromQL.
 
 ## Installation
 
-1. Download the release JAR and its `.sha256` file.
+This is a [Metabase community driver][community-drivers]. Community drivers are
+supported only on self-hosted Metabase, not on Metabase Cloud.
+
+1. Download `prometheus.metabase-driver.jar` and its `.sha256` file from the
+   [latest release][releases].
 2. Verify the checksum and, for production, the Sigstore bundle and GitHub build
-   provenance.
-3. Place the JAR in the Metabase plugins directory.
+   provenance. See [Releasing](docs/releasing.md#releasing) for the exact
+   commands.
+3. Copy the JAR into the Metabase plugins directory — by default a `plugins`
+   folder beside the Metabase JAR, or whatever `MB_PLUGINS_DIR` points at.
 4. Restart Metabase and add a database of type `Mimir / Prometheus`.
 
 Use a base URL such as `https://mimir.example.com/prometheus` or
@@ -85,3 +91,6 @@ Report vulnerabilities using the private process in [SECURITY.md](SECURITY.md).
 ## License
 
 Apache-2.0.
+
+[community-drivers]: https://www.metabase.com/docs/latest/developers-guide/community-drivers
+[releases]: https://github.com/cruxstack/metabase-prometheus-driver/releases/latest

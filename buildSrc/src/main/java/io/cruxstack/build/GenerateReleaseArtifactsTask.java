@@ -36,7 +36,10 @@ public abstract class GenerateReleaseArtifactsTask extends DefaultTask {
         Files.createDirectories(output.toPath());
 
         String version = getReleaseVersion().get();
-        String jarName = "metabase-prometheus-driver-" + version + ".jar";
+        // Community drivers are published under the <driver>.metabase-driver.jar name that
+        // Metabase's own driver build produces, so the release asset is the exact file an
+        // administrator drops into the plugins directory.
+        String jarName = "prometheus.metabase-driver.jar";
         File jar = new File(output, jarName);
         Files.copy(
                 getPluginJar().get().getAsFile().toPath(),

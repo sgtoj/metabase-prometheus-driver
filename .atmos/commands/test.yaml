@@ -79,7 +79,7 @@ commands:
               if [ -n "${RELEASE_VERSION:-}" ]; then
                 release_version_argument="-PreleaseVersion=$RELEASE_VERSION"
                 sh dev/compose.sh run --rm toolchain cmp \
-                  "build/release/metabase-prometheus-driver-$RELEASE_VERSION.jar" \
+                  build/release/prometheus.metabase-driver.jar \
                   build/plugin/prometheus.metabase-driver.jar
               fi
               sh dev/compose.sh --profile demo up --detach --force-recreate mimir mimir-seed metabase
@@ -116,7 +116,7 @@ commands:
               if [ -n "${RELEASE_VERSION:-}" ]; then
                 release_version_argument="-PreleaseVersion=$RELEASE_VERSION"
                 sh dev/compose.sh run --rm toolchain cmp \
-                  "build/release/metabase-prometheus-driver-$RELEASE_VERSION.jar" \
+                  build/release/prometheus.metabase-driver.jar \
                   build/plugin/prometheus.metabase-driver.jar
               fi
               sh dev/compose.sh --profile compatibility up --detach --force-recreate metabase
@@ -152,7 +152,7 @@ commands:
               if [ -n "${RELEASE_VERSION:-}" ]; then
                 release_version_argument="-PreleaseVersion=$RELEASE_VERSION"
                 sh dev/compose.sh run --rm toolchain cmp \
-                  "build/release/metabase-prometheus-driver-$RELEASE_VERSION.jar" \
+                  build/release/prometheus.metabase-driver.jar \
                   build/plugin/prometheus.metabase-driver.jar
               fi
               sh dev/compose.sh --profile demo up --detach --force-recreate mimir mimir-seed metabase
@@ -188,7 +188,7 @@ commands:
               if [ -n "${RELEASE_VERSION:-}" ]; then
                 release_version_argument="-PreleaseVersion=$RELEASE_VERSION"
                 sh dev/compose.sh run --rm toolchain cmp \
-                  "build/release/metabase-prometheus-driver-$RELEASE_VERSION.jar" \
+                  build/release/prometheus.metabase-driver.jar \
                   build/plugin/prometheus.metabase-driver.jar
               fi
               sh dev/compose.sh --profile compatibility --profile prometheus-test up --detach --force-recreate prometheus-test metabase
@@ -226,7 +226,7 @@ commands:
               if [ -n "${RELEASE_VERSION:-}" ]; then
                 release_version_argument="-PreleaseVersion=$RELEASE_VERSION"
                 sh dev/compose.sh run --rm toolchain cmp \
-                  "build/release/metabase-prometheus-driver-$RELEASE_VERSION.jar" \
+                  build/release/prometheus.metabase-driver.jar \
                   build/plugin/prometheus.metabase-driver.jar
               fi
               sh dev/compose.sh --profile compatibility --profile prometheus-test up --detach --force-recreate prometheus-test metabase
