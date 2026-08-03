@@ -46,10 +46,20 @@ object PrometheusDriver {
         val config = DriverConfig.from(details)
         val compiled = try {
             QueryCompiler.compile(nativeQuery, emptyMap(), config)
+        } catch (exception: DriverQueryException) {
+            throw exception
         } catch (exception: IllegalArgumentException) {
             throw DriverQueryException(
                 DriverQueryException.Category.VALIDATION,
                 exception.message ?: "Invalid native PromQL query",
+                exception,
+            )
+        } catch (exception: RuntimeException) {
+            // Compilation is pure query validation, so an unexpected failure must still surface as
+            // an actionable query error instead of an opaque driver stack trace.
+            throw DriverQueryException(
+                DriverQueryException.Category.VALIDATION,
+                "Could not compile the native PromQL query",
                 exception,
             )
         }

@@ -2,8 +2,10 @@ package io.cruxstack.metabase.prometheus
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -125,5 +127,43 @@ class QueryCompilerTest {
                 clock,
             )
         }
+    }
+
+    @Test
+    fun `resolves extreme explicit steps and ranges without arithmetic overflow`() {
+        val hugeStep = QueryCompiler.compile(
+            "# metabase-mimir mode=range step=1000y\nup",
+            emptyMap(),
+            config,
+            clock,
+        )
+        assertEquals("1000y", PromDuration.of(requireNotNull(hugeStep.step)).format())
+
+        val wideRangeConfig = DriverConfig.from(
+            mapOf("url" to "http://localhost", "maximum-query-range" to "2000y"),
+        )
+        val wideRange = QueryCompiler.compile(
+            "# metabase-mimir mode=range step=auto time=@2000-01-01T00:00:00Z/3000-01-01T00:00:00Z\nup",
+            emptyMap(),
+            wideRangeConfig,
+            clock,
+        )
+        val step = requireNotNull(wideRange.step)
+        assertTrue(step > Duration.ZERO, "automatic step must stay positive")
+        assertTrue(
+            wideRange.timeRange.duration.dividedBy(step) <= DriverConfig.DEFAULT_MAXIMUM_DATA_POINTS - 1,
+            "automatic step must respect the inclusive data point limit",
+        )
+    }
+
+    @Test
+    fun `maps an invalid native query to a validation driver error`() {
+        val error = assertThrows(DriverQueryException::class.java) {
+            PrometheusDriver.startQuery(
+                mapOf("url" to "http://localhost:1"),
+                "# metabase-mimir mode=range step=0s\nup",
+            )
+        }
+        assertEquals(DriverQueryException.Category.VALIDATION, error.category)
     }
 }

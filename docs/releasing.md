@@ -29,7 +29,7 @@ cosign verify-blob \
   --bundle metabase-prometheus-driver-1.0.0.jar.sigstore.json \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp \
-    '^https://github.com/cruxstack/metabase-prometheus-driver/.github/workflows/release.yaml@refs/tags/v1\\.0\\.0$' \
+    '^https://github\.com/cruxstack/metabase-prometheus-driver/\.github/workflows/release\.yaml@refs/tags/v1\.0\.0$' \
   metabase-prometheus-driver-1.0.0.jar
 gh attestation verify metabase-prometheus-driver-1.0.0.jar \
   --repo cruxstack/metabase-prometheus-driver

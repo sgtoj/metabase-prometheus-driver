@@ -4,7 +4,6 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.math.BigDecimal
-import kotlin.math.ceil
 
 data class QueryTimeRange(val start: Instant, val end: Instant) {
     init {
@@ -116,25 +115,30 @@ object QueryCompiler {
         val selectedStep = step ?: Directive.Step.Auto
         val resolved = when (selectedStep) {
             Directive.Step.Auto -> {
-                val rangeSeconds = range.toNanos().toDouble() / 1_000_000_000.0
                 if (!range.isZero) {
                     require(config.maximumDataPoints >= 2) {
                         "A non-empty range query requires a maximum data point limit of at least 2"
                     }
                 }
                 val intervals = (config.maximumDataPoints - 1).coerceAtLeast(1)
-                val calculatedSeconds = ceil(rangeSeconds / intervals).toLong().coerceAtLeast(1)
+                val calculatedSeconds = secondsRoundedUp(range.dividedBy(intervals.toLong())).coerceAtLeast(1)
                 maxOf(config.minimumRangeStep, Duration.ofSeconds(calculatedSeconds))
             }
             is Directive.Step.Explicit -> selectedStep.duration.duration
         }
         require(!resolved.isZero && !resolved.isNegative) { "Range step must be greater than zero" }
-        val expectedPoints = range.toNanos() / resolved.toNanos() + 1
-        require(expectedPoints <= config.maximumDataPoints) {
+        // Duration division is exact for every representable duration, and comparing intervals
+        // rather than inclusive points keeps an extreme range or step from overflowing instead of
+        // being reported as an exceeded limit.
+        val intervalCount = range.dividedBy(resolved)
+        require(intervalCount <= config.maximumDataPoints - 1) {
             "Range step would return more than ${config.maximumDataPoints} data points per series"
         }
         return resolved
     }
+
+    private fun secondsRoundedUp(duration: Duration): Long =
+        duration.seconds + if (duration.nano > 0) 1 else 0
 
     private fun normalizeSelector(value: String): String {
         require(value.isNotEmpty()) { "label-values query must contain a metric name or series selector" }
